@@ -527,6 +527,7 @@ def getMediaData():
                     print(str(target_info[key]["id"]) + ": " + target_info[key]["name"] + " 第 "
                           + str(gmd_params["pg"]) + "/" + str(target_info[key]["data"]["page_count"])
                           + " 页 " + res_timer_r2w["message"])
+                    timer_ready_2_write_start = 0
             else:
                 print("获取媒体数据失败, 失败原因: " + response.text)
         result_data["id_" + str(target_info[key]["id"])] = media_data
