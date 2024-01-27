@@ -236,7 +236,15 @@ def writeStorageFile(data=None, overwrite=False):
             storage_file_data = res_storage_file["data"]
         else:
             return res_storage_file
-        storage_file_data.update(data)
+        if "data" in data.keys() and len(data["data"]) > 0 \
+                and "data" in storage_file_data.keys() and len(storage_file_data["data"]) > 0:
+            for key in data["data"].keys():
+                if key in storage_file_data["data"].keys():
+                    storage_file_data["data"][key].update(data["data"][key])
+                else:
+                    storage_file_data["data"][key] = data["data"][key]
+        else:
+            storage_file_data.update(data)
     else:
         storage_file_data = data
 
