@@ -42,6 +42,10 @@ uag = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML
 storage_file = "maccms10_spider.json"
 is_update_type_bind = True
 timer_ready_2_write = 10  # how many pages write record to storage file
+which_target_2_start = 1  # started with which target by ID, 1 is default
+which_target_2_start_page = 1  # started with which page num, 1 is default
+save_data_which_target_2_start = 1  # save data started with which target by ID, 1 is default
+save_data_which_target_2_start_page = 1  # save data started with which page num, 1 is default
 # the file in ./application/extra/bind.php
 # bind_type = {
 #     "7a4856e7b6a1e1a2580a9b69cdc7233c_5": 6,
@@ -63,6 +67,10 @@ def load_env():
     items_default['sleep_time'] = float(items_default['sleep_time'])
     items_default['is_update_type_bind'] = (items_default['is_update_type_bind'] == "1" or items_default['is_update_type_bind'] == 1)
     items_default['timer_ready_2_write'] = int(items_default['timer_ready_2_write'])
+    items_default['which_target_2_start'] = int(items_default['which_target_2_start'])
+    items_default['which_target_2_start_page'] = int(items_default['which_target_2_start_page'])
+    items_default['save_data_which_target_2_start'] = int(items_default['save_data_which_target_2_start'])
+    items_default['save_data_which_target_2_start_page'] = int(items_default['save_data_which_target_2_start_page'])
     # items_default["bind_type"] = json.loads(items_default["bind_type"])
     # Return items as a dictionary
     return {"default": items_default, "db": dict(config.items("db"))}
@@ -80,12 +88,16 @@ def load_config():
                 "site_receive_address": site_receive_address,
                 "site_bind_type_address": site_bind_type_address,
                 "site_receive_pass": site_receive_pass,
-                "collect_time": collect_time,
-                "sleep_time": sleep_time,
+                "collect_time": int(collect_time),
+                "sleep_time": float(sleep_time),
                 "uag": uag,
                 "storage_file": storage_file,
-                "is_update_type_bind": is_update_type_bind,
-                "timer_ready_2_write": timer_ready_2_write
+                "is_update_type_bind": bool(is_update_type_bind),
+                "timer_ready_2_write": int(timer_ready_2_write),
+                "which_target_2_start": int(which_target_2_start),
+                "which_target_2_start_page": int(which_target_2_start_page),
+                "save_data_which_target_2_start": int(save_data_which_target_2_start),
+                "save_data_which_target_2_start_page": int(save_data_which_target_2_start_page)
                 # "bind_type": bind_type
             },
             "db": {
@@ -99,6 +111,7 @@ def load_config():
             }
         }
     return data_config
+
 
 # define msg format
 def msg(code=200, message=None, data=None):
@@ -280,20 +293,38 @@ def getMediaData():
         return msg(500, "请先获取元数据", None)
     target_info = meta_data["data"]["target_info"]
     result_data = {}  # id_1: []
+
+    # start with which target source
+    target_info_start_with_id = 1
+    if config["default"]["which_target_2_start"] > 1:
+        for key, value in target_info.items():
+            if config["default"]["which_target_2_start"] == value["id"]:
+                target_info_start_with_id = key
+                break
+
+    # start with which page
+    target_info_start_with_id_page = 1
+    if config["default"]["which_target_2_start_page"] > 1:
+        target_info_start_with_id_page = config["default"]["which_target_2_start_page"]
+
     timer_ready_2_write_start = 0
-    for key in range(0, len(target_info)):
+    for key_ti, value_ti in target_info.items():
+
         media_data = {}  # page_1: []
-        print("正在获取 " + target_info[key]["name"] + " 的数据")
+        print("正在获取 " + value_ti["name"] + " 的数据")
         gmd_params = {
             "ac": "detail",
-            "pg": 0,
+            "pg": target_info_start_with_id_page,
             "h": config["default"]["collect_time"]
         }
-        for key_2 in range(0, int(target_info[key]["data"]["page_count"])):
+        for key_page in range(target_info_start_with_id_page, int(value_ti["data"]["page_count"])+1):
             time.sleep(config["default"]["sleep_time"])  # to sleep
-            gmd_params["pg"] += 1
-            print("正在获取第 " + str(gmd_params["pg"]) + "/" + str(target_info[key]["data"]["page_count"]) + " 页")
-            response = requests.get(target_info[key]["url"], params=gmd_params, headers={"User-Agent": config["default"]["uag"]})
+            print("正在获取 " + value_ti["name"] + " 第 " + str(gmd_params["pg"]) + "/" + str(value_ti["data"]["page_count"]) + " 页")
+            response = requests.get(
+                value_ti["url"],
+                params=gmd_params,
+                headers={"User-Agent": config["default"]["uag"]}
+            )
             if response.status_code == 200:
                 # template_data = {
                 #     "vod_id": None,  # 影片 id
@@ -380,31 +411,31 @@ def getMediaData():
                 #     # "vod_plot_detail": None,  # 分集剧情内容
                 #     # "type_name": None # 不提交类别名称
                 # }
-                if target_info[key]["type"] == 1:
+                if value_ti["type"] == 1:
                     res_response_data = json.loads(json.dumps(xmltodict.parse(response.text), indent=1))
                     response_data_list = []
                     res_rdrlv = res_response_data["rss"]["list"]["video"]  # result response data rss list video
-                    for key_l2 in range(0, len(res_rdrlv)):
+                    for key_data in range(0, len(res_rdrlv)):
                         template_data = {
-                            # "vod_id": res_rdrlv[key_l2]["id"],
-                            "type_id": res_rdrlv[key_l2]["tid"],
-                            "vod_name": res_rdrlv[key_l2]["name"],
-                            "vod_pic": res_rdrlv[key_l2]["pic"],
-                            "vod_lang": res_rdrlv[key_l2]["lang"],
-                            "vod_area": res_rdrlv[key_l2]["area"],
-                            "vod_year": res_rdrlv[key_l2]["year"],
-                            "vod_state": res_rdrlv[key_l2]["state"],
-                            "vod_remarks": res_rdrlv[key_l2]["note"],
-                            "vod_actor": res_rdrlv[key_l2]["actor"],
-                            "vod_director": res_rdrlv[key_l2]["director"],
-                            "vod_play_from": res_rdrlv[key_l2]["dl"]["dd"]["@flag"],
-                            "vod_play_url": res_rdrlv[key_l2]["dl"]["dd"]["#text"],
-                            "vod_content": res_rdrlv[key_l2]["des"]
+                            # "vod_id": res_rdrlv[key_data]["id"],
+                            "type_id": res_rdrlv[key_data]["tid"],
+                            "vod_name": res_rdrlv[key_data]["name"],
+                            "vod_pic": res_rdrlv[key_data]["pic"],
+                            "vod_lang": res_rdrlv[key_data]["lang"],
+                            "vod_area": res_rdrlv[key_data]["area"],
+                            "vod_year": res_rdrlv[key_data]["year"],
+                            "vod_state": res_rdrlv[key_data]["state"],
+                            "vod_remarks": res_rdrlv[key_data]["note"],
+                            "vod_actor": res_rdrlv[key_data]["actor"],
+                            "vod_director": res_rdrlv[key_data]["director"],
+                            "vod_play_from": res_rdrlv[key_data]["dl"]["dd"]["@flag"],
+                            "vod_play_url": res_rdrlv[key_data]["dl"]["dd"]["#text"],
+                            "vod_content": res_rdrlv[key_data]["des"]
                         }
                         response_data_list.append(template_data)
                     media_data["page_" + str(gmd_params["pg"])] = response_data_list
                     timer_ready_2_write_start += 1
-                elif target_info[key]["type"] == 2:
+                elif value_ti["type"] == 2:
                     response_data = json.loads(response.text)
                     list_rd = response_data["list"]  # list response data
                     response_data_list = []
@@ -529,16 +560,19 @@ def getMediaData():
                 else:
                     return msg(500, "采集格式错误", None)
                 if timer_ready_2_write_start >= config["default"]["timer_ready_2_write"]:
-                    res_timer_r2w = writeStorageFile({"data": {"id_" + str(target_info[key]["id"]): media_data}}, False)
+                    res_timer_r2w = writeStorageFile({"data": {"id_" + str(value_ti["id"]): media_data}}, False)
                     if res_timer_r2w["code"] == 200:
                         media_data = {}
-                    print(str(target_info[key]["id"]) + ": " + target_info[key]["name"] + " 第 "
-                          + str(gmd_params["pg"]) + "/" + str(target_info[key]["data"]["page_count"])
-                          + " 页 " + res_timer_r2w["message"])
+                    print(str(value_ti["id"]) + ". " + str(value_ti["name"]) + value_ti["name"] + " 第 "
+                          + str(gmd_params["pg"]) + "/" + str(value_ti["data"]["page_count"])
+                          + " 页: " + res_timer_r2w["message"])
                     timer_ready_2_write_start = 0
             else:
                 print("获取媒体数据失败, 失败原因: " + response.text)
-        result_data["id_" + str(target_info[key]["id"])] = media_data
+            gmd_params["pg"] += 1
+        gmd_params["pg"] = 1
+        result_data["id_" + str(value_ti["id"])] = media_data
+        target_info_start_with_id_page = 1
 
     return writeStorageFile({"data": result_data}, False)
 
@@ -586,47 +620,82 @@ def postData():
     type_bind = data["type_bind"]
     res_data = data["data"]
     del data
-    for key in range(0, len(target_info)):  # per resources data
-        print("正在处理 " + target_info[key]["name"] + ", 共计 " + str(target_info[key]["data"]["total"]) + " 条数据")
-        temp_res_data = res_data["id_" + str(target_info[key]["id"])]
-        timer_of_data_num = 0
-        for key_l2 in range(1, int(target_info[key]["data"]["page_count"]) + 1):  # per page data
-            if len(temp_res_data) <= 0:
-                print("未找到 "+target_info[key]["name"]+" 的相关数据")
-                continue
-            for key_l3 in range(0, len(temp_res_data["page_" + str(key_l2)])):  # per data
-                timer_of_data_num += 1
-                print("正在处理 "+target_info[key]["name"]+" 第 "+str(timer_of_data_num)+"/"+str(target_info[key]["data"]["total"])+" 条数据")
-                temp_l2_rd = temp_res_data["page_" + str(key_l2)][key_l3]
-                # 编列数据中所有空字符串数据, 并删除
-                # for key_l4, value_l4 in temp_l2_rd.items():
-                #     if value_l4 == "":
-                #         del temp_l2_rd[key_l4]
-                temp_l2_rd = cleanDL(temp_l2_rd)
-                type_id_l2rd = calc_md5(target_info[key]["url"])
-                type_id_l2rd += "_" + str(temp_l2_rd["type_id"])
-                if type_id_l2rd not in type_bind:
-                    for key_l4 in range(0, len(target_info[key]["data"]["class"])):
-                        print("名称为 " \
-                              + temp_l2_rd["vod_name"] \
-                              + " 的媒体数据未绑定类型, 该类型为: " \
-                              + target_info[key]["data"]["class"][key_l4]["type_name"])
-                        break
-                    continue
-                temp_l2_rd["type_id"] = type_bind[type_id_l2rd]
-                temp_l2_rd["pass"] = config["default"]["site_receive_pass"]
 
-                time.sleep(config["default"]["sleep_time"])  # to sleep
-                req_url = config["default"]["site_url"] + config["default"]["site_receive_address"]["_"+str(target_info[key]["mid"])]
-                response = requests.post(req_url, params=temp_l2_rd, headers={"User-Agent": config["default"]["uag"]})
-                if response.status_code == 200:
-                    response_data = json.loads(response.text)
-                    if response_data["code"] == 1:
-                        print(response_data["msg"])
-                    else:
-                        print("代码为: " + str(response_data["code"]) + ", 消息为: " + response_data["msg"])
+    # start with which target source
+    target_info_start_with_id = 0
+    if config["default"]["save_data_which_target_2_start"] >= 1:
+        for key, value in res_data.items():
+            if ("id_"+str(config["default"]["save_data_which_target_2_start"])) == key:
+                target_info_start_with_id = config["default"]["save_data_which_target_2_start"]
+                break
+
+    # start with which page
+    target_info_start_with_id_page = 1
+    if config["default"]["save_data_which_target_2_start_page"] > 1:
+        target_info_start_with_id_page = config["default"]["save_data_which_target_2_start_page"]
+
+    key_id_start = False
+    key_page_start = False
+    for key_id, value_id in res_data.items():
+        if key_id_start or key_id == "id_"+str(target_info_start_with_id):
+            key_id_start = True
+
+        # matched target info
+        temp_ti = {}
+        for key_ti, value_ti in enumerate(target_info):
+            if "id_"+str(value_ti["id"]) == key_id:
+                temp_ti = value_ti
+                break
+        if key_id_start:
+            print("正在处理 " + temp_ti["name"] + ", 预计 " + str(temp_ti["data"]["total"]) + " 条数据")
+
+            timer_of_data_num = 0
+            if len(value_id) <= 0:
+                print("未在您本地存储文件中找到有关 "+temp_ti["name"]+" 的数据")
+            for key_page, value_page in value_id.items():  # per page data
+                if key_page_start or key_page == "page_"+str(target_info_start_with_id_page):
+                    key_page_start = True
+
+                if key_page_start:
+                    if timer_of_data_num > 0:
+                        print(str(temp_ti["id"])+": "+temp_ti["name"]+" 预计跳过 "+str(timer_of_data_num)+" 条数据")
+                    for key_data, value_data in enumerate(value_page):  # per data
+                        timer_of_data_num += 1
+                        print("正在处理 " + temp_ti["name"] + " 第 " + str(timer_of_data_num) + "/" + str(
+                            temp_ti["data"]["total"]) + " 条数据")
+                        # 遍历数据中所有空字符串数据, 并删除
+                        temp_data = cleanDL(value_data)
+                        type_id_data = calc_md5(temp_ti["url"])
+                        type_id_data += "_" + str(temp_data["type_id"])
+                        if type_id_data not in type_bind:
+                            for key_ti_class, value_ti_class in temp_ti["data"]["class"].items():
+                                if temp_data["type_id"] == value_ti_class["type_id"]:
+                                    print("名称为 " \
+                                          + temp_data["vod_name"] \
+                                          + " 的媒体数据未绑定类型, 该类型为: " \
+                                          + value_ti_class["type_name"])
+                                    break
+
+                        temp_data["type_id"] = type_bind[type_id_data]
+                        temp_data["pass"] = config["default"]["site_receive_pass"]
+
+                        time.sleep(config["default"]["sleep_time"])  # to sleep
+                        req_url = config["default"]["site_url"] + config["default"]["site_receive_address"]["_"+str(temp_ti["mid"])]
+                        response = requests.post(req_url, params=temp_data,
+                                                 headers={"User-Agent": config["default"]["uag"]})
+                        if response.status_code == 200:
+                            response_data = json.loads(response.text)
+                            if response_data["code"] == 1:
+                                print(response_data["msg"])
+                            else:
+                                print("代码为: " + str(response_data["code"]) + ", 消息为: " + response_data["msg"])
+                        else:
+                            print(response.text)
                 else:
-                    print(response.text)
+                    timer_of_data_num += len(value_page)
+
+        else:
+            print(str(temp_ti["id"]) + ": " + temp_ti["name"] + " 已被跳过, 预计 " + str(temp_ti["data"]["total"]) + " 条数据")
     return msg(200, "处理完成", None)
 
 
@@ -642,5 +711,3 @@ def process():
 if __name__ == "__main__":
     config = load_config()
     process()
-    # res_post_data = postData()
-    # print(res_post_data)
