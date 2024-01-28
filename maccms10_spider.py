@@ -308,7 +308,7 @@ def getMediaData():
         target_info_start_with_id_page = config["default"]["which_target_2_start_page"]
 
     timer_ready_2_write_start = 0
-    for key_ti, value_ti in target_info.items():
+    for key_ti, value_ti in enumerate(target_info):
 
         media_data = {}  # page_1: []
         print("正在获取 " + value_ti["name"] + " 的数据")
