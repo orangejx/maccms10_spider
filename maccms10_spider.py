@@ -7,6 +7,7 @@ import sqlalchemy
 import pandas
 import xmltodict
 import configparser
+import re
 
 # Database Configuration
 db_info = {
@@ -24,7 +25,10 @@ site_receive_address = {  # store data API
     "_2": "/api.php/receive/art",
     "_8": "/api.php/receive/actor",
     "_9": "/api.php/receive/role",
-    "_11": "/api.php/receive/website"
+    "_11": "/api.php/receive/website",
+    "multi": {
+        "_1": "/api.php/receive/multi_vods"
+    }
 }
 # you should add this function to ./application/api/controller/Receive.php after __construct() function
 # or convert array from ./application/extra/bind.php to variable bind_type,
@@ -46,6 +50,8 @@ which_target_2_start = 1  # started with which target by ID, 1 is default
 which_target_2_start_page = 1  # started with which page num, 1 is default
 save_data_which_target_2_start = 1  # save data started with which target by ID, 1 is default
 save_data_which_target_2_start_page = 1  # save data started with which page num, 1 is default
+use_multi_api = 1  # use multi API, 1: True, 0: False
+everytime_data = pow(2, 6)  # send data everytime
 # the file in ./application/extra/bind.php
 # bind_type = {
 #     "7a4856e7b6a1e1a2580a9b69cdc7233c_5": 6,
@@ -71,6 +77,9 @@ def load_env():
     items_default['which_target_2_start_page'] = int(items_default['which_target_2_start_page'])
     items_default['save_data_which_target_2_start'] = int(items_default['save_data_which_target_2_start'])
     items_default['save_data_which_target_2_start_page'] = int(items_default['save_data_which_target_2_start_page'])
+    items_default['use_multi_api'] = (items_default['use_multi_api'] == "1" or items_default['use_multi_api'] == 1 \
+                                      or items_default['use_multi_api'] == "True" or items_default['use_multi_api'] == True)
+    items_default['everytime_data'] = int(items_default['everytime_data'])
     # items_default["bind_type"] = json.loads(items_default["bind_type"])
     # Return items as a dictionary
     return {"default": items_default, "db": dict(config.items("db"))}
@@ -97,7 +106,9 @@ def load_config():
                 "which_target_2_start": int(which_target_2_start),
                 "which_target_2_start_page": int(which_target_2_start_page),
                 "save_data_which_target_2_start": int(save_data_which_target_2_start),
-                "save_data_which_target_2_start_page": int(save_data_which_target_2_start_page)
+                "save_data_which_target_2_start_page": int(save_data_which_target_2_start_page),
+                "use_multi_api": (use_multi_api == "1" or use_multi_api == 1 or use_multi_api == True or use_multi_api == "True"),
+                "everytime_data": int(everytime_data)
                 # "bind_type": bind_type
             },
             "db": {
@@ -603,7 +614,41 @@ def getSources():
     return res_media_data
 
 
-def postData():
+# print result
+def colorPrint(data):
+    for key_res, value_res in enumerate(data):
+        if value_res["color"] == "red":
+            color_res = "\033[31m"
+        elif value_res["color"] == "green":  # green
+            color_res = "\033[32m"
+        elif value_res["color"] == "yellow":  # yellow
+            color_res = "\033[33m"
+        elif value_res["color"] == "blue":  # blue
+            color_res = "\033[34m"
+        elif value_res["color"] == "purple":  # purple
+            color_res = "\033[35m"
+        elif value_res["color"] == "cyan":  # cyan
+            color_res = "\033[36m"
+        else:  # white
+            color_res = "\033[37m"
+        print(color_res + "%(id)s - %(name)s: %(msg)s" % value_res + "\033[0m")
+
+
+# multi data process
+def multiProcessData(data):
+    for key_multi, value_multi in data.items():
+        res_sd = sendData(
+            {"pass": config["default"]["site_receive_pass"], "arr_data": json.dumps(value_multi)},
+            config["default"]["site_url"] + config["default"]["site_receive_address"]["multi"][key_multi]
+        )
+        if res_sd["code"] == 200 and len(res_sd["data"]) > 0:
+            data[key_multi] = []
+            colorPrint(res_sd["data"])
+        else:
+            print("代码为: " + str(res_sd["code"]) + ", 消息为: " + res_sd["message"])
+
+
+def processData():
     data = readStorageFile()["data"]
     if ("target_info" not in data.keys()) \
             and ("type_bind" not in data.keys()) \
@@ -636,6 +681,8 @@ def postData():
 
     key_id_start = False
     key_page_start = False
+    timer_key_data = {}
+    timer_key_data_num = 0
     for key_id, value_id in res_data.items():
         if key_id_start or key_id == "id_"+str(target_info_start_with_id):
             key_id_start = True
@@ -650,6 +697,7 @@ def postData():
             print("正在处理 " + temp_ti["name"] + ", 预计 " + str(temp_ti["data"]["total"]) + " 条数据")
 
             timer_of_data_num = 0
+            time_skip_of_data_num = 0
             if len(value_id) <= 0:
                 print("未在您本地存储文件中找到有关 "+temp_ti["name"]+" 的数据")
             for key_page, value_page in value_id.items():  # per page data
@@ -658,7 +706,8 @@ def postData():
 
                 if key_page_start:
                     if timer_of_data_num > 0:
-                        print(str(temp_ti["id"])+": "+temp_ti["name"]+" 预计跳过 "+str(timer_of_data_num)+" 条数据")
+                        print(str(temp_ti["id"])+": "+temp_ti["name"]+" 预计跳过 "+str(time_skip_of_data_num)+"/"+str(
+                            temp_ti["data"]["total"])+" 条数据")
                     for key_data, value_data in enumerate(value_page):  # per data
                         timer_of_data_num += 1
                         print("正在处理 " + temp_ti["name"] + " 第 " + str(timer_of_data_num) + "/" + str(
@@ -668,42 +717,86 @@ def postData():
                         type_id_data = calc_md5(temp_ti["url"])
                         type_id_data += "_" + str(temp_data["type_id"])
                         if type_id_data not in type_bind:
-                            for key_ti_class, value_ti_class in temp_ti["data"]["class"].items():
+                            for key_ti_class, value_ti_class in enumerate(temp_ti["data"]["class"]):
                                 if temp_data["type_id"] == value_ti_class["type_id"]:
                                     print("名称为 " \
                                           + temp_data["vod_name"] \
                                           + " 的媒体数据未绑定类型, 该类型为: " \
                                           + value_ti_class["type_name"])
                                     break
+                            continue
 
                         temp_data["type_id"] = type_bind[type_id_data]
-                        temp_data["pass"] = config["default"]["site_receive_pass"]
 
-                        time.sleep(config["default"]["sleep_time"])  # to sleep
-                        req_url = config["default"]["site_url"] + config["default"]["site_receive_address"]["_"+str(temp_ti["mid"])]
-                        response = requests.post(req_url, params=temp_data,
-                                                 headers={"User-Agent": config["default"]["uag"]})
-                        if response.status_code == 200:
-                            response_data = json.loads(response.text)
-                            if response_data["code"] == 1:
-                                print(response_data["msg"])
-                            else:
-                                print("代码为: " + str(response_data["code"]) + ", 消息为: " + response_data["msg"])
+                        if config["default"]["use_multi_api"] \
+                                and "multi" in config["default"]["site_receive_address"].keys() \
+                                and ("_"+str(temp_ti["mid"])) in config["default"]["site_receive_address"]["multi"].keys():
+                            print("本次数据入库方式为: 批量")
+                            if "_"+str(temp_ti["mid"]) not in timer_key_data.keys():
+                                timer_key_data["_" + str(temp_ti["mid"])] = []
+                            timer_key_data["_"+str(temp_ti["mid"])].append(temp_data)
+                            timer_key_data_num += 1
+                            if timer_key_data_num >= config["default"]["everytime_data"]:
+                                multiProcessData(timer_key_data)
+                                timer_key_data_num = 0
+
                         else:
-                            print(response.text)
+                            temp_data["pass"] = config["default"]["site_receive_pass"]
+
+                            time.sleep(config["default"]["sleep_time"])  # to sleep
+                            req_url = config["default"]["site_url"] + config["default"]["site_receive_address"]["_"+str(temp_ti["mid"])]
+                            res_sd = sendData(temp_data, req_url)
+                            if res_sd["code"] == 200:
+                                print(res_sd["message"])
+                            else:
+                                print("代码为: "+str(res_sd["code"])+", 消息为: "+res_sd["message"])
                 else:
+                    time_skip_of_data_num += len(value_page)
                     timer_of_data_num += len(value_page)
 
         else:
             print(str(temp_ti["id"]) + ": " + temp_ti["name"] + " 已被跳过, 预计 " + str(temp_ti["data"]["total"]) + " 条数据")
+    if timer_key_data_num > 0:
+        multiProcessData(timer_key_data)
+        timer_key_data_num = 0
     return msg(200, "处理完成", None)
+
+
+# send data
+def sendData(data=None, req_url=None):
+    if req_url is None:
+        return msg(500, "请求地址不能为空", None)
+
+    response = requests.post(req_url, data=data, headers={"User-Agent": config["default"]["uag"]})
+    if response.status_code == 200:
+        if response.text.startswith("[vod_data]"):
+            res_text = response.text.replace("&nbsp;", "")
+            res_text_list = cleanDL(res_text.split("<br>"))
+            res_data = []
+            for key, value in enumerate(res_text_list):
+                if value.startswith("[vod_data] ") or value.startswith("数据采集完成。"):
+                    res_text_list[key] = ''
+                else:
+                    matchObj = re.match(r"^([0-9]*)、(.*) <font color='(.*)'>(.*)</font>$", value, re.U | re.I)
+                    res_data.append({
+                        "id": matchObj.group(1),
+                        "name": matchObj.group(2),
+                        "color": matchObj.group(3),
+                        "msg": matchObj.group(4)
+                    })
+            return msg(200, "数据发送完毕", res_data)
+        else:
+            response_data = json.loads(response.text)
+            return msg(response_data["code"], response_data["msg"], None)
+    else:
+        return msg(response.status_code, response.text, None)
 
 
 # follow the process
 def process():
     res_sources = getSources()
     print(res_sources["message"])
-    res_post_data = postData()
+    res_post_data = processData()
     print(res_post_data)
 
 
