@@ -646,9 +646,11 @@ def processMediaData():
                 if not config["default"]["save_media_data"] \
                         and len(media_data) >= config["default"]["everytime_pages_data"]:
                     processData(media_data, meta_data["data"]["type_bind"], value_ti)
+                    media_data = {}
 
             if not config["default"]["save_media_data"] and len(media_data) > 0:
                 processData(media_data, meta_data["data"]["type_bind"], value_ti)
+                media_data = {}
             gmd_params["pg"] = 1
             result_data["id_" + str(value_ti["id"])] = media_data
             target_info_start_with_id_page = 1
