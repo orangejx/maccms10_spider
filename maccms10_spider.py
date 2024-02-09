@@ -513,7 +513,7 @@ def processMediaData():
 
                                         if value_dd_list["@flag"] == value_dd["@flag"]:
                                             dl_insert = False
-                                            value_dd_list += ("#"+value_dd["#text"])
+                                            value_dd_list["#text"] += ("#"+value_dd["#text"])
                                             break
 
                                     if dl_insert:
