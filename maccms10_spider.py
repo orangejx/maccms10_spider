@@ -104,7 +104,7 @@ def getColorCode(text_color):
 def colorPrint(data):
     for key_res, value_res in enumerate(data):
         print(getColorCode(value_res["color"]) + "%(id)s - %(name)s: %(msg)s" % value_res + "\033[0m")
-        if not value_res["download"] is None:
+        if not value_res["download"] is None and len(value_res["download"]) > 0:
             print(getColorCode(value_res["download"]["color"]) + "download a file save to %(path)s, Message is %(msg)s" % value_res["download"] + "\033[0m")
 
 
@@ -499,7 +499,7 @@ def processMediaData():
                                 "vod_content": res_rdrlv[key_data]["des"]
                             }
 
-                            if type(res_rdrlv[key_data]["dl"]) is dict:
+                            if type(res_rdrlv[key_data]["dl"]["dd"]) is dict:
                                 template_data["vod_play_from"] = res_rdrlv[key_data]["dl"]["dd"]["@flag"]
                                 template_data["vod_play_url"] = res_rdrlv[key_data]["dl"]["dd"]["#text"]
                             elif type(res_rdrlv[key_data]["dl"]["dd"]) is list:
