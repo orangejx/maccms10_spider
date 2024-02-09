@@ -353,7 +353,7 @@ def processMediaData():
     if config["default"]["which_target_2_start"] > 1:
         for key, value in enumerate(target_info):
             if config["default"]["which_target_2_start"] == value["id"]:
-                target_info_start_with_id = key
+                target_info_start_with_id = value["id"]
                 break
 
     # start with which page
