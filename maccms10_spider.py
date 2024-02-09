@@ -115,9 +115,9 @@ def readStorageFile():
     if isExist:
         file = open(config["default"]["storage_file"], "r")
         file_list = json.load(file)
+        return msg(200, "读取完成", file_list)
     else:
-        file_list = {}
-    return msg(200, "读取完成", file_list)
+        return msg(404, "存储文件不存在", None)
 
 
 # write storage file
@@ -160,15 +160,15 @@ def load_env():
     items_default['collect_time'] = int(items_default['collect_time'])
     items_default['sleep_time'] = float(items_default['sleep_time'])
     items_default['is_update_type_bind'] = (
-                items_default['is_update_type_bind'] == "1" or items_default['is_update_type_bind'] == 1)
+            items_default['is_update_type_bind'] == "1" or items_default['is_update_type_bind'] == 1)
     items_default['timer_ready_2_write'] = int(items_default['timer_ready_2_write'])
     items_default['which_target_2_start'] = int(items_default['which_target_2_start'])
     items_default['which_target_2_start_page'] = int(items_default['which_target_2_start_page'])
     items_default['save_data_which_target_2_start'] = int(items_default['save_data_which_target_2_start'])
     items_default['save_data_which_target_2_start_page'] = int(items_default['save_data_which_target_2_start_page'])
     items_default['use_multi_api'] = (items_default['use_multi_api'] == "1" or items_default['use_multi_api'] == 1
-                                      or items_default['use_multi_api'] == "True" or items_default[
-                                          'use_multi_api'] is True)
+                                      or items_default['use_multi_api'] == "True"
+                                      or items_default['use_multi_api'] is True)
     items_default['everytime_pages_data'] = int(items_default['everytime_pages_data'])
     items_default['time_force_update'] = int(items_default['time_force_update'])
     items_default['save_media_data'] = (items_default['save_media_data'] == 1 or items_default['save_media_data'] == "1"
@@ -202,13 +202,13 @@ def load_config():
                 "save_data_which_target_2_start": int(save_data_which_target_2_start),
                 "save_data_which_target_2_start_page": int(save_data_which_target_2_start_page),
                 "use_multi_api": (
-                            use_multi_api == "1" or use_multi_api == 1 or use_multi_api is True
-                            or use_multi_api == "True"),
+                        use_multi_api == "1" or use_multi_api == 1
+                        or use_multi_api is True or use_multi_api == "True"),
                 "everytime_pages_data": int(everytime_pages_data),
                 "time_force_update": int(time_force_update),
                 "save_media_data": (
-                            save_media_data == "1" or save_media_data == 1 or save_media_data is True
-                            or save_media_data == "True"),
+                        save_media_data == "1" or save_media_data == 1
+                        or save_media_data is True or save_media_data == "True"),
                 # "bind_type": bind_type
             },
             "db": {
@@ -340,10 +340,10 @@ def processMediaData():
             and "target_info" in meta_data["data"].keys() \
             and len(meta_data["data"]["target_info"]) <= 0:
         return msg(500, "请先获取元数据", None)
-    if "update_time" not in meta_data["data"].keys() \
-        or (meta_data["data"]["update_time"]+3600*config["default"]["time_force_update"]) <= int(time.time()):
+    if ("update_time" not in meta_data["data"].keys()
+            or (meta_data["data"]["update_time"] + 3600 * config["default"]["time_force_update"]) <= int(time.time())):
         res_gmi = getMetaInfo()
-        print("元数据信息过期, 重新获取. 代码为: "+str(res_gmi["code"])+" 消息为: "+res_gmi["message"])
+        print("元数据信息过期, 重新获取. 代码为: " + str(res_gmi["code"]) + " 消息为: " + res_gmi["message"])
         meta_data = readStorageFile()
     target_info = meta_data["data"]["target_info"]
     result_data = {}  # id_1: []
@@ -351,7 +351,7 @@ def processMediaData():
     # start with which target source
     target_info_start_with_id = 1
     if config["default"]["which_target_2_start"] > 1:
-        for key, value in target_info.items():
+        for key, value in enumerate(target_info):
             if config["default"]["which_target_2_start"] == value["id"]:
                 target_info_start_with_id = key
                 break
@@ -486,11 +486,46 @@ def processMediaData():
                                 "vod_remarks": res_rdrlv[key_data]["note"],
                                 "vod_actor": res_rdrlv[key_data]["actor"],
                                 "vod_director": res_rdrlv[key_data]["director"],
-                                "vod_play_from": res_rdrlv[key_data]["dl"]["dd"]["@flag"],
-                                "vod_play_url": res_rdrlv[key_data]["dl"]["dd"]["#text"],
+                                "vod_play_from": "",
+                                "vod_play_url": "",
                                 "vod_content": res_rdrlv[key_data]["des"]
                             }
+
+                            if type(res_rdrlv[key_data]["dl"]) is dict:
+                                template_data["vod_play_from"] = res_rdrlv[key_data]["dl"]["dd"]["@flag"]
+                                template_data["vod_play_url"] = res_rdrlv[key_data]["dl"]["dd"]["#text"]
+                            elif type(res_rdrlv[key_data]["dl"]["dd"]) is list:
+                                list_data_dd = []
+                                for key_dd, value_dd in enumerate(res_rdrlv[key_data]["dl"]["dd"]):
+                                    dl_insert = True
+                                    for key_dd_list, value_dd_list in enumerate(list_data_dd):
+                                        if value_dd_list["#text"] == value_dd["#text"]:
+                                            dl_insert = False
+                                            break
+
+                                        if value_dd_list["@flag"] == value_dd["@flag"]:
+                                            dl_insert = False
+                                            value_dd_list += ("#"+value_dd["#text"])
+                                            break
+
+                                    if dl_insert:
+                                        list_data_dd.append({
+                                            "@flag": value_dd["@flag"],
+                                            "#text": value_dd["#text"]
+                                        })
+
+                                for key_dd_list, value_dd_list in enumerate(list_data_dd):
+                                    template_data["vod_play_from"] += ("$$$"+value_dd_list["@flag"])
+                                    template_data["vod_play_url"] += ("$$$"+value_dd_list["#text"])
+
+                                if template_data["vod_play_from"].startswith("$$$", 0):
+                                    template_data["vod_play_from"] = template_data["vod_play_from"][3:]
+
+                                if template_data["vod_play_url"].startswith("$$$", 0):
+                                    template_data["vod_play_url"] = template_data["vod_play_url"][3:]
+
                             response_data_list.append(template_data)
+
                         media_data["page_" + str(gmd_params["pg"])] = response_data_list
                         timer_ready_2_write_start += 1
                     elif value_ti["type"] == 2:
@@ -499,132 +534,128 @@ def processMediaData():
                         response_data_list = []
                         for key_l3 in range(0, len(list_rd)):
                             template_data = {
-                                # "vod_id": list_rd[key_l3]["vod_id"],  # 影片 id
+                                # 影片 id
+                                # "vod_id": list_rd[key_l3]["vod_id"],
+                                # 类别 id
                                 "type_id":
                                     list_rd[key_l3]["type_id"] if ("type_id" in list_rd[key_l3].keys()) else None,
-                                # 类别 id
-                                # "type_id_1": list_rd[key_l3]["type_id_1"],  # 父级类别 id
+                                # 父级类别 id
+                                # "type_id_1": list_rd[key_l3]["type_id_1"],
+                                # 影片名称
                                 "vod_name":
                                     list_rd[key_l3]["vod_name"] if ("vod_name" in list_rd[key_l3].keys()) else None,
-                                # 影片名称
+                                # 子标题
                                 "vod_sub":
                                     list_rd[key_l3]["vod_sub"] if ("vod_sub" in list_rd[key_l3].keys()) else None,
-                                # 子标题
+                                # 英文名
                                 "vod_en":
                                     list_rd[key_l3]["vod_en"] if ("vod_en" in list_rd[key_l3].keys()) else (
-                                        list_rd[key_l3]["vod_enname"] if (
-                                                "vod_enname" in list_rd[key_l3].keys()) else None),  # 英文名
+                                        list_rd[key_l3]["vod_enname"] if ("vod_enname" in list_rd[key_l3].keys()) else None),
+                                # 是否审核 1/0
                                 "vod_status":
                                     list_rd[key_l3]["vod_status"] if ("vod_status" in list_rd[key_l3].keys()) else None,
-                                # 是否审核 1/0
+                                # 首字母
                                 "vod_letter":
                                     list_rd[key_l3]["vod_letter"] if ("vod_letter" in list_rd[key_l3].keys()) else None,
-                                # 首字母
+                                # 颜色, RGB 不包含#
                                 "vod_color":
                                     list_rd[key_l3]["vod_color"] if ("vod_color" in list_rd[key_l3].keys()) else None,
-                                # 颜色, RGB 不包含#
+                                # 标签
                                 "vod_tag":
-                                    list_rd[key_l3]["vod_tag"] if ("vod_tag" in list_rd[key_l3].keys()) else None,  # 标签
+                                    list_rd[key_l3]["vod_tag"] if ("vod_tag" in list_rd[key_l3].keys()) else None,
+                                # 扩展分类
                                 "vod_class":
                                     list_rd[key_l3]["vod_class"] if ("vod_class" in list_rd[key_l3].keys()) else None,
-                                # 扩展分类
+                                # 图片
                                 "vod_pic":
-                                    list_rd[key_l3]["vod_pic"] if ("vod_pic" in list_rd[key_l3].keys()) else None,  # 图片
+                                    list_rd[key_l3]["vod_pic"] if ("vod_pic" in list_rd[key_l3].keys()) else None,
+                                # 图片缩略图
                                 "vod_pic_thumb":
-                                    list_rd[key_l3]["vod_pic_thumb"] if (
-                                            "vod_pic_thumb" in list_rd[key_l3].keys()) else None,  # 图片缩略图
+                                    list_rd[key_l3]["vod_pic_thumb"] if ("vod_pic_thumb" in list_rd[key_l3].keys()) else None,
+                                # 海报图
                                 "vod_pic_slide":
-                                    list_rd[key_l3]["vod_pic_slide"] if (
-                                            "vod_pic_slide" in list_rd[key_l3].keys()) else None,  # 海报图
+                                    list_rd[key_l3]["vod_pic_slide"] if ("vod_pic_slide" in list_rd[key_l3].keys()) else None,
+                                # 截图
                                 "vod_pic_screenshot":
-                                    list_rd[key_l3]["vod_pic_screenshot"] if (
-                                            "vod_pic_screenshot" in list_rd[key_l3].keys()) else None,  # 截图
+                                    list_rd[key_l3]["vod_pic_screenshot"] if ("vod_pic_screenshot" in list_rd[key_l3].keys()) else None,
+                                # 演员
                                 "vod_actor":
                                     list_rd[key_l3]["vod_actor"] if ("vod_actor" in list_rd[key_l3].keys()) else None,
-                                # 演员
-                                "vod_director":
-                                    list_rd[key_l3]["vod_director"] if (
-                                                "vod_director" in list_rd[key_l3].keys()) else None,
                                 # 导演
+                                "vod_director":
+                                    list_rd[key_l3]["vod_director"] if ("vod_director" in list_rd[key_l3].keys()) else None,
+                                # 编剧
                                 "vod_writer":
                                     list_rd[key_l3]["vod_writer"] if ("vod_writer" in list_rd[key_l3].keys()) else None,
-                                # 编剧
+                                # 幕后
                                 "vod_behind":
                                     list_rd[key_l3]["vod_behind"] if ("vod_behind" in list_rd[key_l3].keys()) else None,
-                                # 幕后
+                                # 简介
                                 "vod_blurb":
                                     list_rd[key_l3]["vod_blurb"] if ("vod_blurb" in list_rd[key_l3].keys()) else None,
-                                # 简介
-                                "vod_remarks":
-                                    list_rd[key_l3]["vod_remarks"] if (
-                                                "vod_remarks" in list_rd[key_l3].keys()) else None,
                                 # 备注
-                                "vod_pubdate":
-                                    list_rd[key_l3]["vod_pubdate"] if (
-                                                "vod_pubdate" in list_rd[key_l3].keys()) else None,
+                                "vod_remarks":
+                                    list_rd[key_l3]["vod_remarks"] if ("vod_remarks" in list_rd[key_l3].keys()) else None,
                                 # 发布日期, 2018-01-20
+                                "vod_pubdate":
+                                    list_rd[key_l3]["vod_pubdate"] if ("vod_pubdate" in list_rd[key_l3].keys()) else None,
+                                # 总集数, 100
                                 "vod_total":
                                     list_rd[key_l3]["vod_total"] if ("vod_total" in list_rd[key_l3].keys()) else None,
-                                # 总集数, 100
+                                # 连载数, 20
                                 "vod_serial":
                                     list_rd[key_l3]["vod_serial"] if ("vod_serial" in list_rd[key_l3].keys()) else None,
-                                # 连载数, 20
+                                # 电视频道
                                 "vod_tv":
-                                    list_rd[key_l3]["vod_tv"] if ("vod_tv" in list_rd[key_l3].keys()) else None,  # 电视频道
-                                "vod_weekday":
-                                    list_rd[key_l3]["vod_weekday"] if (
-                                                "vod_weekday" in list_rd[key_l3].keys()) else None,
+                                    list_rd[key_l3]["vod_tv"] if ("vod_tv" in list_rd[key_l3].keys()) else None,
                                 # 节目周期
+                                "vod_weekday":
+                                    list_rd[key_l3]["vod_weekday"] if ("vod_weekday" in list_rd[key_l3].keys()) else None,
+                                # 地区, 大陆
                                 "vod_area":
                                     list_rd[key_l3]["vod_area"] if ("vod_area" in list_rd[key_l3].keys()) else None,
-                                # 地区, 大陆
+                                # 语言, 国语
                                 "vod_lang":
                                     list_rd[key_l3]["vod_lang"] if ("vod_lang" in list_rd[key_l3].keys()) else None,
-                                # 语言, 国语
+                                # 年份, 2018
                                 "vod_year":
                                     list_rd[key_l3]["vod_year"] if ("vod_year" in list_rd[key_l3].keys()) else None,
-                                # 年份, 2018
-                                "vod_version":
-                                    list_rd[key_l3]["vod_version"] if (
-                                                "vod_version" in list_rd[key_l3].keys()) else None,
                                 # 资源版本, 高清版
+                                "vod_version":
+                                    list_rd[key_l3]["vod_version"] if ("vod_version" in list_rd[key_l3].keys()) else None,
+                                # 资源类别, 正片, 预告片, 花絮
                                 "vod_state":
                                     list_rd[key_l3]["vod_state"] if ("vod_state" in list_rd[key_l3].keys()) else None,
-                                # 资源类别, 正片, 预告片, 花絮
+                                # 作者, 作者
                                 "vod_author":
                                     list_rd[key_l3]["vod_author"] if ("vod_author" in list_rd[key_l3].keys()) else None,
-                                # 作者, 作者
-                                "vod_jumpurl":
-                                    list_rd[key_l3]["vod_jumpurl"] if (
-                                                "vod_jumpurl" in list_rd[key_l3].keys()) else None,
                                 # 跳转URL
+                                "vod_jumpurl":
+                                    list_rd[key_l3]["vod_jumpurl"] if ("vod_jumpurl" in list_rd[key_l3].keys()) else None,
+                                # 已/未完结
                                 "vod_isend":
                                     list_rd[key_l3]["vod_isend"] if ("vod_isend" in list_rd[key_l3].keys()) else None,
-                                # 已/未完结
+                                # 锁定/解锁
                                 "vod_lock":
                                     list_rd[key_l3]["vod_lock"] if ("vod_lock" in list_rd[key_l3].keys()) else None,
-                                # 锁定/解锁
-                                "vod_duration":
-                                    list_rd[key_l3]["vod_duration"] if (
-                                                "vod_duration" in list_rd[key_l3].keys()) else None,
                                 # 视频时长
+                                "vod_duration":
+                                    list_rd[key_l3]["vod_duration"] if ("vod_duration" in list_rd[key_l3].keys()) else None,
+                                # 豆瓣ID
                                 "vod_douban_id":
-                                    list_rd[key_l3]["vod_douban_id"] if (
-                                            "vod_douban_id" in list_rd[key_l3].keys()) else None,  # 豆瓣ID
+                                    list_rd[key_l3]["vod_douban_id"] if ("vod_douban_id" in list_rd[key_l3].keys()) else None,
+                                # 豆瓣评分
                                 "vod_douban_score":
-                                    list_rd[key_l3]["vod_douban_score"] if (
-                                            "vod_douban_score" in list_rd[key_l3].keys()) else None,  # 豆瓣评分
-                                "vod_content":
-                                    list_rd[key_l3]["vod_content"] if (
-                                                "vod_content" in list_rd[key_l3].keys()) else None,
+                                    list_rd[key_l3]["vod_douban_score"] if ("vod_douban_score" in list_rd[key_l3].keys()) else None,
                                 # 详情, 介绍
+                                "vod_content":
+                                    list_rd[key_l3]["vod_content"] if ("vod_content" in list_rd[key_l3].keys()) else None,
+                                # 视频资源播放标签, xlm3u8
                                 "vod_play_from":
-                                    list_rd[key_l3]["vod_play_from"] if (
-                                            "vod_play_from" in list_rd[key_l3].keys()) else None,  # 视频资源播放标签, xlm3u8
-                                "vod_play_url":
-                                    list_rd[key_l3]["vod_play_url"] if (
-                                                "vod_play_url" in list_rd[key_l3].keys()) else None
+                                    list_rd[key_l3]["vod_play_from"] if ("vod_play_from" in list_rd[key_l3].keys()) else None,
                                 # 播放资源 url
+                                "vod_play_url":
+                                    list_rd[key_l3]["vod_play_url"] if ("vod_play_url" in list_rd[key_l3].keys()) else None
                             }
                             response_data_list.append(template_data)
                         media_data["page_" + str(gmd_params["pg"])] = response_data_list
@@ -665,6 +696,11 @@ def processMediaData():
 
 # get Resources Meta Info
 def getMetaInfo():
+    read_mi = readStorageFile()
+    if (read_mi["code"] == 200 and len(read_mi["data"]) >= 0
+            and "update_time" in read_mi["data"]
+            and (read_mi["data"]["update_time"] + 3600 * config["default"]["time_force_update"]) > int(time.time())):
+        return msg(200, "资源站元数据读取成功", None)
     resources_info = getCollectAddressInfo()
     for key in range(0, len(resources_info)):
         print("正在获取资源站 " + resources_info[key]["name"] + " 元数据")
@@ -771,14 +807,13 @@ def pprocessData():
 
 # process data
 def processData(value_id, type_bind, temp_ti):
-
     # 用以保存当前不满足批量发送数据数量时的数据
     timer_key_data = {}
     for key_page, value_page in value_id.items():  # per page data
 
         for key_data, value_data in enumerate(value_page):  # per data
-            print("正在处理 " + temp_ti["name"] + " 第 "+str(key_page[5:])+" 页的第 " + str(key_data + 1) + "/" + str(
-                len(value_page)) + " 条数据")
+            print("正在处理 " + temp_ti["name"] + " 第 "
+                  + str(key_page[5:])+" 页的第 " + str(key_data + 1) + "/" + str(len(value_page)) + " 条数据")
             # 遍历数据中所有空字符串数据, 并删除
             temp_data = cleanDL(value_data)
             type_id_data = calc_md5(temp_ti["url"])
@@ -786,18 +821,14 @@ def processData(value_id, type_bind, temp_ti):
             if type_id_data not in type_bind:
                 for key_ti_class, value_ti_class in enumerate(temp_ti["data"]["class"]):
                     if temp_data["type_id"] == value_ti_class["type_id"]:
-                        print("名称为 "
-                              + temp_data["vod_name"]
-                              + " 的媒体数据未绑定类型, 该类型为: "
-                              + value_ti_class["type_name"])
+                        print("名称为 " + temp_data["vod_name"] + " 的媒体数据未绑定类型, 该类型为: " + value_ti_class["type_name"])
                         break
                 return False
 
             temp_data["type_id"] = type_bind[type_id_data]
 
-            if config["default"]["use_multi_api"] \
-                    and "multi" in config["default"]["site_receive_address"].keys() \
-                    and ("_" + str(temp_ti["mid"])) in config["default"]["site_receive_address"]["multi"].keys():
+            if (config["default"]["use_multi_api"] and "multi" in config["default"]["site_receive_address"].keys()
+                    and ("_" + str(temp_ti["mid"])) in config["default"]["site_receive_address"]["multi"].keys()):
                 # print("本次数据入库方式为: 批量")
                 if "_" + str(temp_ti["mid"]) not in timer_key_data.keys():
                     timer_key_data["_" + str(temp_ti["mid"])] = []
@@ -826,19 +857,27 @@ def sendData(data=None, req_url=None):
     response = requests.post(req_url, data=data, headers={"User-Agent": config["default"]["uag"]})
     if response.status_code == 200:
         if response.text.startswith("[vod_data]"):
-            res_text = response.text.replace("&nbsp;", "")
+            res_text = response.text.replace("&nbsp;", " ")
             res_text_list = cleanDL(res_text.split("<br>"))
             res_data = []
             for key, value in enumerate(res_text_list):
                 if value.startswith("[vod_data] ") or value.startswith("数据采集完成。"):
                     res_text_list[key] = ''
                 else:
-                    matchObj = re.match(r"^([0-9]*)、(.*) <font color='(.*)'>(.*)</font>$", value, re.U | re.I)
+                    matchObj = re.match(r"^(\d*)、(.*) <font color='(.*)'>(.*)。</font>(<a.*>(.*)</a><font color=(.*)>(.*)</font>)*$", value, re.U | re.I)
+                    res_data_download = {}
+                    if not matchObj.group(5) is None:
+                        res_data_download = {
+                            "path": matchObj.group(6),
+                            "color": matchObj.group(7),
+                            "msg": matchObj.group(8)
+                        }
                     res_data.append({
                         "id": matchObj.group(1),
                         "name": matchObj.group(2),
                         "color": matchObj.group(3),
-                        "msg": matchObj.group(4)
+                        "msg": matchObj.group(4),
+                        "download": res_data_download
                     })
             return msg(200, "数据发送完毕", res_data)
         else:
