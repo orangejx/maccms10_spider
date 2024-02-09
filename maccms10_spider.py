@@ -80,24 +80,32 @@ def cleanDL(data):
         return data
 
 
+# get color code
+def getColorCode(text_color):
+    res_color = ""
+    if text_color == "red":
+        res_color = "\033[31m"
+    elif text_color == "green":  # green
+        res_color = "\033[32m"
+    elif text_color == "yellow":  # yellow
+        res_color = "\033[33m"
+    elif text_color == "blue":  # blue
+        res_color = "\033[34m"
+    elif text_color == "purple":  # purple
+        res_color = "\033[35m"
+    elif text_color == "cyan":  # cyan
+        res_color = "\033[36m"
+    else:  # white
+        res_color = "\033[37m"
+    return res_color
+
+
 # print result
 def colorPrint(data):
     for key_res, value_res in enumerate(data):
-        if value_res["color"] == "red":
-            color_res = "\033[31m"
-        elif value_res["color"] == "green":  # green
-            color_res = "\033[32m"
-        elif value_res["color"] == "yellow":  # yellow
-            color_res = "\033[33m"
-        elif value_res["color"] == "blue":  # blue
-            color_res = "\033[34m"
-        elif value_res["color"] == "purple":  # purple
-            color_res = "\033[35m"
-        elif value_res["color"] == "cyan":  # cyan
-            color_res = "\033[36m"
-        else:  # white
-            color_res = "\033[37m"
-        print(color_res + "%(id)s - %(name)s: %(msg)s" % value_res + "\033[0m")
+        print(getColorCode(value_res["color"]) + "%(id)s - %(name)s: %(msg)s" % value_res + "\033[0m")
+        if not value_res["download"] is None:
+            print(getColorCode(value_res["download"]["color"]) + "download a file save to %(path)s, Message is %(msg)s" % value_res["download"] + "\033[0m")
 
 
 # define msg format
