@@ -872,7 +872,7 @@ def sendData(data=None, req_url=None):
                 if value.startswith("[vod_data] ") or value.startswith("数据采集完成。"):
                     res_text_list[key] = ''
                 else:
-                    matchObj = re.match(r"^(\d*)、(.*) <font color='(.*)'>(.*)。</font>(<a.*>(.*)</a><font color=(.*)>(.*)</font>)*$", value, re.U | re.I)
+                    matchObj = re.match(r"^(\d*)、(.*) <font color='(.*)'>(.*)</font>(<a.*>(.*)</a><font color=(.*)>(.*)</font>)*$", value, re.U | re.I)
                     res_data_download = {}
                     if matchObj is None:
                         print("未匹配到相关规则, 原数据为: " + value)
