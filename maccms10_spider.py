@@ -874,6 +874,9 @@ def sendData(data=None, req_url=None):
                 else:
                     matchObj = re.match(r"^(\d*)、(.*) <font color='(.*)'>(.*)。</font>(<a.*>(.*)</a><font color=(.*)>(.*)</font>)*$", value, re.U | re.I)
                     res_data_download = {}
+                    if matchObj is None:
+                        print("未匹配到相关规则, 原数据为: " + value)
+                        continue
                     if not matchObj.group(5) is None:
                         res_data_download = {
                             "path": matchObj.group(6),
