@@ -235,12 +235,18 @@ def load_config():
 # get Collect Resources address
 def getCollectAddressInfo():
     print("正在获取资源站信息")
-    db_engine = sqlalchemy.create_engine(
-        "mysql+pymysql://%(db_user)s:%(db_pass)s@%(db_host)s:%(db_port)s/%(db_name)s?charset=%(db_charset)s" % config[
-            "db"])
+    
+    db_engine = sqlalchemy.create_engine("mysql+pymysql://%(db_user)s:%(db_pass)s@%(db_host)s:%(db_port)s/%(db_name)s?charset=%(db_charset)s" % config["db"])
+    
     db_connect = db_engine.connect()
-    data_sql = pandas.read_sql(sqlalchemy.text("select * from " + config["db"]["db_prefix"] + "collect"), db_connect)
-    list_data_sql = data_sql.values.tolist()
+    db_metadata = sqlalchemy.MetaData()
+    table_collect = sqlalchemy.Table(config["db"]["db_prefix"]+"collect", db_metadata, autoload=True, autoload_with=db_engine)
+    
+    data_table = db_connect.execute(sqlalchemy.select([table_collect]))
+    list_data_sql = pandas.DataFrame(data_table.fetchall()).values.tolist()
+
+    # data_sql = pandas.read_sql("select * from " + config["db"]["db_prefix"] + "collect", db_connect)
+    # list_data_sql = data_sql.values.tolist()
     data_collect_address = []
     for key in range(0, len(list_data_sql)):
         data_collect_address.append({
